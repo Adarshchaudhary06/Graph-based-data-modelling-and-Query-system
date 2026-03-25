@@ -62,7 +62,8 @@ To ensure data integrity and high performance, follow this exact sequence:
 ### 3. Frontend Configuration
 1.  Navigate to `frontend/`.
 2.  Install dependencies: `npm install`.
-3.  Start development server: `npm run dev`.
+3.  Configure your backend endpoint in `.env.local`:fixed
+4.  Start development server: `npm run dev`.
 
 ## Features
 *   **Supply Chain Tracing**: Trace any Sales Order to its resulting Billing Document.

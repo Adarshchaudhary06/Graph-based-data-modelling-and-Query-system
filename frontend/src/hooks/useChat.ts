@@ -1,9 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { ChatMessage, SSEEvent } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL 
-  ? `${process.env.NEXT_PUBLIC_API_URL}/api/chat`
-  : 'https://graph-based-data-modelling-and-query.onrender.com/api/chat';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = `${BASE_URL}/api/chat`;
 
 
 export function useChat() {
