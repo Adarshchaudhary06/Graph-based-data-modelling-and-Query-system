@@ -1,12 +1,4 @@
-
-# Backend Architecture & Engineering Document
-**Project:** SAP Order-to-Cash (O2C) Graph AI Query System  
-**Role:** Forward Deployed Engineer Assignment  
-
----
-
-## 1. Executive Summary
-This document outlines the backend architecture for a Graph-Based Data Modeling and Conversational Query System. The backend acts as the orchestration layer between a React-based frontend visualization, a Neo4j Graph Database containing SAP O2C supply chain data, and high-speed Large Language Models (LLMs) hosted on Groq.
+This file outlines the backend architecture for a Graph-Based Data Modeling and Conversational Query System. The backend acts as the orchestration layer between a React-based frontend visualization, a Neo4j Graph Database containing SAP O2C supply chain data, and high-speed Large Language Models (LLMs) hosted on Groq.
 
 The system natively translates Natural Language to Cypher (NL2Cypher), executes the queries against the graph, extracts referenced business keys for UI node highlighting, and streams data-backed answers back to the user in real-time via Server-Sent Events (SSE).
 
@@ -21,7 +13,7 @@ The system natively translates Natural Language to Cypher (NL2Cypher), executes 
 | **Neo4j (AuraDB)** | Graph Database | Relational databases require expensive recursive CTEs to trace an O2C flow. Neo4j handles multi-hop semantic traversals (Order → Delivery → Invoice) in O(1) time via pointer chasing. |
 | **Groq (Llama-3)** | LLM Provider | Groq's LPU architecture provides ~300 tokens/second inference. This enables near-instantaneous Cypher query generation and makes the token-streaming experience incredibly fluid for the user. |
 | **LangChain Core** | AI Orchestration | Used for Prompt Templating and Message state management. *Note: We purposefully bypassed LangChain's rigid `GraphCypherQAChain` in favor of a custom asynchronous pipeline to achieve fine-grained control over business key extraction and SSE streaming.* |
-| **Poetry** | Dependency Management | Ensures deterministic builds and standardizes the environment setup, demonstrating modern Python engineering practices over standard `pip/requirements.txt`. |
+
 
 ---
 
