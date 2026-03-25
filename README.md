@@ -30,10 +30,22 @@ Once downloaded, place the JSONL files into the `sap-o2c-data/` directory.
 ##  Setup Instructions
 
 ### 1. Database Setup
-1.  Create a free **Neo4j AuraDB** instance.
-2.  Install requirements: `pip install neo4j`.
-3.  Configure credentials in `neo4j_ingest.py`.
-4.  Run ingestion: `python neo4j_ingest.py`.
+To ensure data integrity and high performance, follow this exact sequence:
+
+1.  **Step 1: Constraints & Indexes**
+    *   Open your Neo4j Browser/Console.
+    *   Copy and run **STEP 1** from `auradb_setup.cypher`. 
+    *   *This must be done before loading data to ensure uniqueness.*
+
+2.  **Step 2: Data Ingestion**
+    *   Install requirements: `pip install neo4j`.
+    *   Configure your AuraDB credentials in `neo4j_ingest.py`.
+    *   Run the script: `python neo4j_ingest.py`.
+
+3.  **Step 3: Optimization & Status**
+    *   Return to your Neo4j Browser.
+    *   Copy and run **STEPS 2 and 3** from `auradb_setup.cypher`.
+    *   *This creates relationship shortcuts (SalesOrder→Delivery) and applies semantic labels (e.g., :PendingDelivery).*
 
 ### 2. Backend Configuration
 1.  Navigate to `backend/`.
