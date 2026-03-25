@@ -9,20 +9,18 @@ router = APIRouter()
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     """Processes questions and streams the response via Server-Sent Events (SSE)."""
-    try:
-        return StreamingResponse(
-            process_chat_stream(request.question, request.chat_history),
-            media_type="text/event-stream"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return StreamingResponse(
+        process_chat_stream(request.question, request.chat_history),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"}
+    )
 
 @router.get("/graph-data", response_model=GraphDataResponse)
 async def get_graph_data():
     """Fetches a sample of nodes and edges for the React visualization."""
     try:
-        # Limit to 300 to prevent browser canvas lag
-        data = neo4j_db.get_graph_sample(limit=300)
+        # Fetching entire graph without limit to stress test
+        data = neo4j_db.get_graph_sample(limit=None)
         return GraphDataResponse(**data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

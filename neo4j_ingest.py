@@ -21,9 +21,9 @@ from neo4j import GraphDatabase
 # ===========================================================================
 # CONFIGURATION – Update these values
 # ===========================================================================
-NEO4J_URI      = os.getenv("NEO4J_URI",      "neo4j+s://9f4dc308.databases.neo4j.io")
-NEO4J_USER     = os.getenv("NEO4J_USER",     "9f4dc308")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "DNhPdC0CE1rOe4vgLoBz_5gmze6dVDMIKNHGqNNBZyQ")
+NEO4J_URI      = os.getenv("NEO4J_URI",      "XXXXXXX")
+NEO4J_USER     = os.getenv("NEO4J_USER",     "XXXXXXX")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "XXXXXXX")
 
 # Path to the sap-o2c-data folder on your machine
 DATA_DIR = os.path.join(os.path.dirname(__file__), "sap-o2c-data")

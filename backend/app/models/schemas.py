@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
 class Message(BaseModel):
@@ -7,7 +7,7 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
-    chat_history: Optional[List[Message]] = []
+    chat_history: Optional[List[Message]] = Field(default_factory=list)
 
 class GraphDataResponse(BaseModel):
     nodes: List[Dict[str, Any]]

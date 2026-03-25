@@ -10,56 +10,86 @@ from app.services.neo4j_service import neo4j_db
 router_llm = ChatGroq(api_key=GROQ_API_KEY, model_name="llama-3.1-8b-instant", temperature=0)
 coder_llm = ChatGroq(api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile", temperature=0)
 
-# --- STATIC SCHEMA INJECTION (Saves 500ms+ latency compared to dynamic fetching) ---
+# --- STATIC SCHEMA INJECTION (Micro & Macro Levels) ---
 STATIC_SCHEMA = """
-Node Labels and Primary Keys:
-- Customer {businessPartner: STRING}
-- SalesOrder {salesOrder: STRING, totalNetAmount: FLOAT, overallDeliveryStatus: STRING}
-  Secondary Labels: :PendingDelivery, :PartiallyDelivered, :FullyDelivered
-- OutboundDelivery {deliveryDocument: STRING, overallGoodsMovementStatus: STRING}
-  Secondary Labels: :GoodsMovementPending, :GoodsMovementComplete
-- BillingDocument {billingDocument: STRING, totalNetAmount: FLOAT, isCancelled: BOOLEAN}
-  Secondary Labels: :ActiveBilling, :CancelledBilling
-- JournalEntry {accountingDocumentId: STRING}
-- Payment {paymentId: STRING}
+Node Labels:
+- Customer {businessPartner: STRING, fullName: STRING}
+- SalesOrder {salesOrder: STRING, totalNetAmount: FLOAT} (Labels: :PendingDelivery, :PartiallyDelivered, :FullyDelivered)
+- SalesOrderItem {salesOrderItemId: STRING}
+- OutboundDelivery {deliveryDocument: STRING} (Labels: :GoodsMovementPending, :GoodsMovementComplete)
+- OutboundDeliveryItem {deliveryItemId: STRING}
+- BillingDocument {billingDocument: STRING, totalNetAmount: FLOAT} (Labels: :ActiveBilling, :CancelledBilling)
+- BillingDocumentItem {billingItemId: STRING}
+- JournalEntry {accountingDocumentId: STRING, amountInTransactionCurrency: FLOAT}
+- Payment {paymentId: STRING, amountInTransactionCurrency: FLOAT}
 - Product {product: STRING, productDescription: STRING}
+- Plant {plant: STRING, plantName: STRING}
+- StorageLocation {storageLocationId: STRING, plant: STRING}
 
-Relationships (Shortcut Flows):
+Relationships (Tracing):
 (Customer)-[:PLACED]->(SalesOrder)
-(SalesOrder)-[:DELIVERED_VIA]->(OutboundDelivery)
-(OutboundDelivery)-[:BILLED_AS]->(BillingDocument)
+(SalesOrder)-[:HAS_ITEM]->(SalesOrderItem)
+(SalesOrderItem)-[:REFERENCES]->(Product)
+(SalesOrderItem)-[:PRODUCED_AT]->(Plant)
+(OutboundDelivery)-[:HAS_DELIVERY_ITEM]->(OutboundDeliveryItem)
+(OutboundDeliveryItem)-[:FULFILLS]->(SalesOrderItem)
+(OutboundDeliveryItem)-[:SHIPPED_FROM]->(Plant)
+(OutboundDeliveryItem)-[:STORED_AT]->(StorageLocation)
+(BillingDocument)-[:HAS_BILLING_ITEM]->(BillingDocumentItem)
+(BillingDocumentItem)-[:BILLS_MATERIAL]->(Product)
+(BillingDocumentItem)-[:REFERENCES_DELIVERY]->(OutboundDelivery)
 (BillingDocument)-[:GENERATES]->(JournalEntry)
 (JournalEntry)-[:CLEARED_BY]->(Payment)
+(Product)-[:STOCKED_AT]->(Plant)
+
+Macro Shortcuts:
+(SalesOrder)-[:DELIVERED_VIA]->(OutboundDelivery)
+(OutboundDelivery)-[:BILLED_AS]->(BillingDocument)
 """
 
 # --- PROMPTS ---
 GUARDRAIL_PROMPT = """You are a strict routing assistant for an SAP Order-to-Cash Graph system.
-Classify if the user's question relates to the domain (Customers, Orders, Deliveries, Billing, Payments, Products, Supply Chain).
-If related, reply ONLY with "RELEVANT". If unrelated or general knowledge, reply ONLY with "IRRELEVANT"."""
+Classify if the user's question relates to the domain (Customers, Orders, Deliveries, Billing, Payments, Products, Plants, Supply Chain, Logistics).
+If the question is even remotely related to these business topics, reply ONLY with "RELEVANT". 
+If it is completely unrelated (e.g. poetry, coding help, general history), reply ONLY with "IRRELEVANT"."""
 
 CYPHER_PROMPT = """You are a Neo4j Cypher expert. Convert the user's question to a Cypher query.
 Schema:
 {schema}
 
 CRITICAL RULES:
-1. Prefer shortcut edges: (SalesOrder)-[:DELIVERED_VIA]->(OutboundDelivery)-[:BILLED_AS]->(BillingDocument)
-2. Use secondary labels: Match (s:FullyDelivered), (b:ActiveBilling).
-3. ALWAYS RETURN THE NODES (e.g., `RETURN so, d, b`), not just properties, so the UI can extract IDs.
-4. Respond with ONLY valid Cypher code. No markdown formatting, no explanations."""
+1. Always RETURN the actual nodes (e.g., `RETURN so, d, p`), not just properties, so the UI can highlight them.
+2. If the user asks for a document trace but DOES NOT provide an ID, DO NOT use a placeholder like 'X'. Instead, write a query to return 5 example nodes so the user can pick one.
+   Example: `MATCH (b:BillingDocument) RETURN b LIMIT 5`
+3. Respond with ONLY valid Cypher code within a ```cypher code block. No explanations.
+
+EXAMPLES:
+- "Trace billing doc 90504255": 
+  MATCH (b:BillingDocument {{billingDocument: '90504255'}}) OPTIONAL MATCH (so:SalesOrder)-[:DELIVERED_VIA]->(d:OutboundDelivery)-[:BILLED_AS]->(b) RETURN so, d, b
+- "Trace sales order 740506":
+  MATCH (so:SalesOrder {{salesOrder: '740506'}}) OPTIONAL MATCH (so)-[:DELIVERED_VIA]->(d:OutboundDelivery) OPTIONAL MATCH (d)-[:BILLED_AS]->(b:BillingDocument) RETURN so, d, b
+- "Products at Plant 1010":
+  MATCH (p:Product)-[:STOCKED_AT]->(pl:Plant {{plant: '1010'}}) RETURN p, pl
+- "Orders delivered but not billed":
+  MATCH (so:SalesOrder)-[:DELIVERED_VIA]->(d:OutboundDelivery) WHERE NOT (d)-[:BILLED_AS]->(:BillingDocument) RETURN so, d LIMIT 5"""
 
 ANSWER_PROMPT = """You are an AI assistant for a Supply Chain Graph Database.
-Answer the user's question using ONLY the provided database context.
-If the context is empty, say "No data was found matching your query."
-Keep the answer clear, professional, and highlight key numbers.
+Answer the user's question using the provided database context.
+If nodes were found but they have no specific properties, say "I found X matching nodes in the database. You can see them highlighted in the graph."
+Otherwise, summarize the results clearly.
+If the context is completely empty, say "No data was found matching your query."
 
 Database Context:
 {context}
 """
 
 def extract_cypher(text: str) -> str:
-    match = re.search(r'```cypher\n(.*?)\n```', text, re.DOTALL | re.IGNORECASE)
+    # Look for any block of code, even if not tagged 'cypher'
+    match = re.search(r'```(?:cypher)?\s+(.*?)\s+```', text, re.DOTALL | re.IGNORECASE)
     if match: return match.group(1).strip()
-    return text.replace('```cypher', '').replace('```', '').strip()
+    # Fallback to lines that look like Cypher
+    lines = [l.strip() for l in text.split('\n') if l.strip() and not l.startswith('--') and not l.startswith('//')]
+    return " ".join(lines).strip()
 
 async def process_chat_stream(question: str, history: list):
     """Async Generator yielding SSE for streaming."""
@@ -87,7 +117,7 @@ async def process_chat_stream(question: str, history: list):
     # 3. Cypher Generation & Self-Healing Retry Loop
     db_result = None
     raw_cypher = ""
-    max_retries = 1
+    max_retries = 2
     
     for attempt in range(max_retries + 1):
         try:
@@ -109,10 +139,34 @@ async def process_chat_stream(question: str, history: list):
                 yield "data: {\"type\": \"done\"}\n\n"
                 return
 
-    # 4. Handle Empty Results Gracefully
-    if not db_result["context"]:
-        yield f"data: {json.dumps({'type': 'metadata', 'cypher': raw_cypher, 'highlight_nodes':[]})}\n\n"
-        yield f"data: {json.dumps({'type': 'token', 'content': 'No data was found matching your query.'})}\n\n"
+    # Ensure db_result is initialized even if all retries failed and didn't return early
+    # This handles a theoretical edge case where the loop finishes without db_result being set
+    # (though the 'return' in the else block should prevent this if retries fail).
+    if db_result is None:
+        db_result = {"context": [], "highlight_nodes": []}
+
+    # 4. Handle Empty Results & Suggest IDs
+    # If BOTH context and highlight_nodes are empty, then we say no data found
+    if not db_result["context"] and not db_result["highlight_nodes"]:
+        suggestion = ""
+        # Heuristic: If prompt mentioned Billing/Order but returned nothing, suggest real IDs
+        query_str = str(raw_cypher)
+        # Check for the primary entry point in the query to provide better suggestions
+        if "SalesOrder" in query_str and "740506" in query_str or "salesOrder" in query_str.lower():
+            ids = neo4j_db.get_sample_ids("SalesOrder", "salesOrder")
+            if ids: suggestion = f" I couldn't find that Sales Order. Try one of these valid IDs: {', '.join(ids)}."
+        elif "BillingDocument" in query_str:
+            ids = neo4j_db.get_sample_ids("BillingDocument", "billingDocument")
+            if ids: suggestion = f" I couldn't find that document. Try one of these valid IDs: {', '.join(ids)}."
+        elif "Plant" in query_str:
+            ids = neo4j_db.get_sample_ids("Plant", "plant")
+            if ids: suggestion = f" I couldn't find that Plant. Try one of these valid IDs: {', '.join(ids)}."
+        elif "Product" in query_str:
+            ids = neo4j_db.get_sample_ids("Product", "product")
+            if ids: suggestion = f" I couldn't find that Product. Try one of these valid IDs: {', '.join(ids)}."
+
+        yield f"data: {json.dumps({'type': 'metadata', 'cypher': raw_cypher, 'highlight_nodes': []})}\n\n"
+        yield f"data: {json.dumps({'type': 'token', 'content': f'No data found matching your query.{suggestion}'})}\n\n"
         yield "data: {\"type\": \"done\"}\n\n"
         return
 
@@ -125,8 +179,15 @@ async def process_chat_stream(question: str, history: list):
     yield f"data: {json.dumps(metadata)}\n\n"
 
     # 6. Stream Final Answer (Llama-3-70b)
+    final_context = db_result["context"]
+    # Check if context is a truthy but data-empty list: [{}, {}]
+    is_empty_list = isinstance(final_context, list) and all(not d for d in final_context if isinstance(d, dict))
+
+    if (not final_context or is_empty_list) and db_result.get("highlight_nodes"):
+        final_context = f"SUCCESS: Found {len(db_result['highlight_nodes'])} matching nodes in the database. Their IDs are visible in the graph highlighting."
+
     answer_messages =[
-        SystemMessage(content=ANSWER_PROMPT.format(context=json.dumps(db_result["context"], default=str))),
+        SystemMessage(content=ANSWER_PROMPT.format(context=json.dumps(final_context, default=str))),
         HumanMessage(content=question)
     ]
     
