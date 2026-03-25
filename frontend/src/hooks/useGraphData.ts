@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { GraphData } from '@/types';
 
 // The backend endpoint
-const API_URL = 'http://localhost:8000/api/graph-data';
+const API_URL = process.env.NEXT_PUBLIC_API_URL 
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api/graph-data` 
+  : 'https://graph-based-data-modelling-and-query.onrender.com/api/graph-data';
 
 export function useGraphData() {
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
