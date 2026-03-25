@@ -57,3 +57,6 @@ Once downloaded, place the JSONL files into the `sap-o2c-data/` directory.
 *   **Product-Plant Mapping**: Query which products are stocked at which plants across the logistics network.
 *   **Semantic Highlighting**: AI results are automatically highlighted and zoomed on the graph canvas.
 *   **Intelligent Suggestions**: The AI suggests real IDs if it can't find the exact match you requested.
+
+*   <img width="1919" height="919" alt="image" src="https://github.com/user-attachments/assets/c3082a6d-93d7-46ea-b6e2-dc9e73d20da7" />
+
