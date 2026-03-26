@@ -71,3 +71,5 @@ To ensure data integrity and high performance, follow this exact sequence:
 *   **Semantic Highlighting**: AI results are automatically highlighted and zoomed on the graph canvas.
 *   **Intelligent Suggestions**: The AI suggests real IDs if it can't find the exact match you requested.
    <img width="1919" height="919" alt="Screenshot 2026-03-26 023925" src="https://github.com/user-attachments/assets/2af3a9a0-ed87-4669-867c-e4a82bd37d49" />
+   <img width="1919" height="917" alt="image" src="https://github.com/user-attachments/assets/ba4d9bb6-d404-40d1-9b47-9a93e704dadc" />
+
