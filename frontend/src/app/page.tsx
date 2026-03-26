@@ -40,7 +40,7 @@ export default function Home() {
             gap: '1rem', color: 'var(--text-secondary)'
           }}>
             <Loader2 className="animate-spin" size={32} />
-            <p>Loading Supply Chain Graph...</p>
+            <p>Loading Supply Chain Graph may take 1-2 minutes...</p>
           </div>
         )}
 
